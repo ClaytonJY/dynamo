@@ -26,6 +26,7 @@ import yaml
 from dynamo.common.utils.paths import get_workspace_dir
 from dynamo.planner.config.aic_interpolation_spec import AICInterpolationSpec
 from dynamo.planner.config.backend_components import MockerComponentName
+from dynamo.planner.config.defaults import SubComponentType
 from dynamo.planner.config.parallelization import (
     PickedParallelConfig,
     picked_to_aic_model_config_kwargs,
@@ -589,13 +590,11 @@ def add_profile_data_to_config(
         return None
 
     profile_data_cm_name = _make_cm_name(PLANNER_PROFILE_DATA_PREFIX)
-
     profile_cm_data: dict[str, str] = {}
-    # TODO: use enums
-    if profiling_data.get("prefill"):
-        profile_cm_data["prefill_raw_data.json"] = json.dumps(profiling_data["prefill"])
-    if profiling_data.get("decode"):
-        profile_cm_data["decode_raw_data.json"] = json.dumps(profiling_data["decode"])
+    for role in (SubComponentType.PREFILL, SubComponentType.DECODE):
+        role_data = profiling_data.get(role.value)
+        if role_data:
+            profile_cm_data[f"{role.value}_raw_data.json"] = json.dumps(role_data)
 
     profile_data_cm = {
         "apiVersion": "v1",
@@ -919,7 +918,7 @@ def _load_profiling_data(output_dir: str) -> dict:
     prefill_npz = f"{output_dir}/selected_prefill_interpolation/raw_data.npz"
     try:
         with np.load(prefill_npz) as p_raw:
-            result["prefill"] = {
+            result[SubComponentType.PREFILL.value] = {
                 "prefill_isl": p_raw["prefill_isl"].tolist(),
                 "prefill_ttft": p_raw["prefill_ttft"].tolist(),
                 "prefill_thpt_per_gpu": p_raw["prefill_thpt_per_gpu"].tolist(),
@@ -942,7 +941,7 @@ def _load_profiling_data(output_dir: str) -> dict:
             else:
                 max_kv_tokens_val = int(max_kv_tokens)
 
-            result["decode"] = {
+            result[SubComponentType.DECODE.value] = {
                 "x_kv_usage": d_raw["x_kv_usage"].tolist(),
                 "y_context_length": d_raw["y_context_length"].tolist(),
                 "z_itl": d_raw["z_itl"].tolist(),
